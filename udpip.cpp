@@ -10,8 +10,8 @@
 #include <string.h>       //memset
 #include <sys/socket.h>   //socket
 
-#define SRCIP "10.107.115.114"
-#define DSTIP "123.0.0.3"
+#define SRCIP "10.95.47.104"
+#define DSTIP "10.95.47.104"
 
 #ifndef linux
 struct iphdr {
@@ -61,13 +61,13 @@ unsigned short csum(unsigned short *ptr, int nbytes) {
   }
   if (nbytes == 1) {
     oddbyte = 0;
-    *((u_char *)&oddbyte) = *(u_char *)ptr;
+    *((u_char *) &oddbyte) = *(u_char *) ptr;
     sum += oddbyte;
   }
 
   sum = (sum >> 16) + (sum & 0xffff);
   sum = sum + (sum >> 16);
-  answer = (short)~sum;
+  answer = (short) ~sum;
 
   return (answer);
 }
@@ -77,15 +77,15 @@ void die(char *s) {
   exit(1);
 }
 
-int func(void) {
+int func() {
   int s = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
   if (s < 0) die("socket()");
 
   char datagram[4096], *pseudogram;
   memset(datagram, 0, 4096);
 
-  iphdr *iph = (iphdr *)datagram;
-  struct udphdr *udph = (struct udphdr *)(datagram + sizeof(struct ip));
+  iphdr *iph = (iphdr *) datagram;
+  struct udphdr *udph = (struct udphdr *) (datagram + sizeof(struct ip));
   char *data = datagram + sizeof(iphdr) + sizeof(struct udphdr);
   strcpy(data, "ABCDEFGHIJKLMNOPQRSTUVWXYZ");
 
@@ -101,23 +101,24 @@ int func(void) {
   iph->ihl = 5;
   iph->version = 4;
   iph->tos = 0;
-  iph->tot_len = sizeof(struct iphdr) + sizeof(struct udphdr) + 1300;
-  iph->id = htonl(54321);  // Id of this packet
+  iph->tot_len = htons(sizeof(struct iphdr) + sizeof(struct udphdr) + 1300);
+  iph->id = htons(54321);  // Id of this packet
   iph->frag_off = 0;
   iph->ttl = 255;
   iph->protocol = IPPROTO_UDP;
   iph->check = 0;                     // Set to 0 before calculating checksum
   iph->saddr = inet_addr(source_ip);  // Spoof the source ip address
   iph->daddr = sin.sin_addr.s_addr;
+  iph->check = 0;
 
   // Ip checksum
-  iph->check = csum((unsigned short *)datagram, iph->tot_len);
+  //iph->check = csum((unsigned short *) datagram, ntohs(iph->tot_len));
 
   // UDP header
-  udph->source = htons(6666);
-  udph->dest = htons(8622);
-  udph->len = htons(8 + 1300);
-  udph->check = 0;  // leave checksum 0 now, filled later by pseudo header
+  udph->uh_sport = htons(8089);
+  udph->uh_dport = htons(60002);
+  udph->uh_ulen = htons(8 + 1300);
+  //udph->uh_sum = 0;  // leave checksum 0 now, filled later by pseudo header
 
   // Now the UDP checksum using the pseudo header
   psh.source_address = inet_addr(source_ip);
@@ -127,25 +128,25 @@ int func(void) {
   psh.udp_length = htons(sizeof(struct udphdr) + 1300);
 
   int psize = sizeof(struct pseudo_header) + sizeof(struct udphdr) + 1300;
-  pseudogram = malloc(psize);
+  pseudogram = (char *) malloc(psize);
 
-  memcpy(pseudogram, (char *)&psh, sizeof(struct pseudo_header));
+  memcpy(pseudogram, (char *) &psh, sizeof(struct pseudo_header));
   memcpy(pseudogram + sizeof(struct pseudo_header), udph,
          sizeof(struct udphdr) + 1300);
 
-  udph->check = csum((unsigned short *)pseudogram, psize);
+  udph->uh_sum = csum((unsigned short *) pseudogram, psize);
 
   // loop if you want to flood :)
   // while (1)
   {
     // Send the packet
-    if (sendto(s, datagram, iph->tot_len, 0, (struct sockaddr *)&sin,
+    if (sendto(s, datagram, ntohs(iph->tot_len), 0, (struct sockaddr *) &sin,
                sizeof(sin)) < 0) {
       perror("sendto failed");
     }
-    // Data send successfully
+      // Data send successfully
     else {
-      printf("Packet Send. Length : %d \n", iph->tot_len);
+      printf("Packet Send. Length : %d \n", ntohs(iph->tot_len));
     }
   }
 
