@@ -10,8 +10,8 @@
 #include <string.h>       //memset
 #include <sys/socket.h>   //socket
 
-#define SRCIP "10.95.47.104"
-#define DSTIP "10.95.47.104"
+#define SRCIP "127.0.0.1"
+#define DSTIP "127.0.0.1"
 
 #ifndef linux
 struct iphdr {
@@ -112,13 +112,13 @@ int func() {
   iph->check = 0;
 
   // Ip checksum
-  //iph->check = csum((unsigned short *) datagram, ntohs(iph->tot_len));
+  iph->check = csum((unsigned short *) datagram, ntohs(iph->tot_len));
 
   // UDP header
   udph->uh_sport = htons(8089);
   udph->uh_dport = htons(60002);
   udph->uh_ulen = htons(8 + 1300);
-  //udph->uh_sum = 0;  // leave checksum 0 now, filled later by pseudo header
+  udph->uh_sum = 0;  // leave checksum 0 now, filled later by pseudo header
 
   // Now the UDP checksum using the pseudo header
   psh.source_address = inet_addr(source_ip);
@@ -149,6 +149,5 @@ int func() {
       printf("Packet Send. Length : %d \n", ntohs(iph->tot_len));
     }
   }
-
   return 0;
 }
